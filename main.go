@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/joho/godotenv"
-
-	"github.com/craftlion/communautofinder"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/joho/godotenv"
+	"github.com/mguaylam/communautofinder"
 )
 
 // Possible states in conversation with the bot
@@ -60,18 +60,22 @@ var mutex = sync.Mutex{}
 
 func main() {
 
-	// Find .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file: %s", err)
-	}
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	go http.ListenAndServe(":8444", nil)
+
+	// Find TOKEN in .env file if exist
+	godotenv.Load()
+	var err error
 
 	bot, err = tgbotapi.NewBotAPI(os.Getenv("TOKEN_COMMUNAUTOSEARCH_BOT"))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	log.Printf("Authorized on Telegram account %s", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -114,26 +118,30 @@ func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 
 	messageText := message.Text
 
-	if strings.ToLower(messageText) == "/help" {
-		return "Type:\n/start to initiate a new search\n/restart to restart a search with the same parameters as the previous search"
-	} else if strings.ToLower(messageText) == "/start" {
+	if strings.ToLower(messageText) == "/aide" {
+		return "Écrire:\n/chercher pour initier une nouvelle recherche.\n/recommencer pour redémarrer une recherche avec les mêmes paramètres que la recherche précédente."
+	} else if strings.ToLower(messageText) == "/chercher" {
 
 		if userCtx.state == Searching {
+			log.Printf("Cancelling searching for user " + strconv.FormatInt(userCtx.chatId, 10))
 			cancelSearchingMethod[userCtx.chatId]()
 		}
 
 		userCtx.state = AskingType
-		return "Hello! Type:\n- station to search for a communauto station\n- flex to search for a communauto flex vehicle ?"
+		log.Printf("Asking user " + strconv.FormatInt(userCtx.chatId, 10) + " vehicule type")
+		return "Bonjour ! Tapez :\n- station pour rechercher une Communauto en station.\n- flex pour rechercher un véhicule Communauto Flex."
 	} else if userCtx.state == AskingType {
 		if strings.ToLower(messageText) == "station" {
 			userCtx.searchType = Station
 			userCtx.state = AskingMargin
-			return "What is your search radius in Km ?"
+			log.Printf("Asking user " + strconv.FormatInt(userCtx.chatId, 10) + " station radius search")
+			return "Quelle est votre distance de recherche en kilomètres ?"
 
 		} else if strings.ToLower(messageText) == "flex" {
 			userCtx.searchType = Flex
 			userCtx.state = AskingMargin
-			return "What is your search radius in Km ?"
+			log.Printf("Asking user " + strconv.FormatInt(userCtx.chatId, 10) + " flex radius search")
+			return "Quelle est votre distance de recherche en kilomètres ?"
 		}
 
 	} else if userCtx.state == AskingMargin {
@@ -144,11 +152,12 @@ func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 			if margin > 0 {
 				userCtx.kmMargin = margin
 				userCtx.state = AskingPosition
-				return "Please share the GPS location for your search"
+				log.Printf("Asking user " + strconv.FormatInt(userCtx.chatId, 10) + " location")
+				return "Veuillez partager votre position pour votre recherche."
 			}
 		}
 
-		return "Please enter a correct search radius"
+		return "Veuillez entrer un rayon de recherche correct."
 
 	} else if userCtx.state == AskingPosition {
 		if message.Location != nil {
@@ -162,8 +171,8 @@ func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 
 			} else if userCtx.searchType == Station {
 				userCtx.state = AskingDateStart
-
-				return fmt.Sprintf("What is the start date and time for the rental in the format %s ?", dateExample)
+				log.Printf("Asking user " + strconv.FormatInt(userCtx.chatId, 10) + " start date and time for station")
+				return fmt.Sprintf("Quelle est la date et l'heure de début de la location au format %s ?", dateExample)
 			}
 		}
 	} else if userCtx.state == AskingDateStart {
@@ -173,7 +182,8 @@ func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 		if err == nil {
 			userCtx.dateStart = t
 			userCtx.state = AskingDateEnd
-			return fmt.Sprintf("What is the end date and time for the rental in the format %s ?", dateExample)
+			log.Printf("Asking user " + strconv.FormatInt(userCtx.chatId, 10) + " end date and time for station")
+			return fmt.Sprintf("Quelle est la date et l'heure de fin de la location au format %s ?", dateExample)
 		}
 
 	} else if userCtx.state == AskingDateEnd {
@@ -187,7 +197,7 @@ func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 			return generateMessageResearch(*userCtx)
 		}
 
-	} else if strings.ToLower(messageText) == "/restart" {
+	} else if strings.ToLower(messageText) == "/recommencer" {
 
 		if userCtx.state == EndSearch {
 			userCtx.state = Searching
@@ -195,12 +205,12 @@ func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 			go launchSearch(*userCtx)
 			return generateMessageResearch(*userCtx)
 		} else {
-			return "Please initiate a new search before restarting it."
+			return "Veuillez initier une nouvelle recherche avant de la redémarrer."
 		}
 
 	}
-
-	return "I didn't quite understand 😕"
+	log.Printf("Invalid input from user " + strconv.FormatInt(userCtx.chatId, 10))
+	return "Je n'ai pas bien compris. 😕"
 }
 
 func generateMessageResearch(userCtx UserContext) string {
@@ -215,10 +225,10 @@ func generateMessageResearch(userCtx UserContext) string {
 
 	roundedKmMargin := int(userCtx.kmMargin)
 
-	message := fmt.Sprintf("🔍 Searching for a %s vehicle within %dkm of the position you entered... you will receive a message when one is found", typeSearch, roundedKmMargin)
+	message := fmt.Sprintf("🔍 Recherche d'un véhicule %s dans un rayon de %dkm autour de la position que vous avez entrée. Vous recevrez un message lorsque l'un sera trouvé.", typeSearch, roundedKmMargin)
 
 	if userCtx.searchType == Station {
-		message += fmt.Sprintf(" from %s to %s", userCtx.dateStart.Format(layoutDate), userCtx.dateEnd.Format(layoutDate))
+		message += fmt.Sprintf(" de %s a %s", userCtx.dateStart.Format(layoutDate), userCtx.dateEnd.Format(layoutDate))
 	}
 
 	return message
@@ -234,8 +244,10 @@ func launchSearch(userCtx UserContext) {
 
 	if userCtx.searchType == Flex {
 		go communautofinder.SearchFlexCarForGoRoutine(cityId, currentCoordinate, userCtx.kmMargin, resultChannel[userCtx.chatId], ctx, cancel)
+		log.Printf("Searching a flex vehicule for user " + strconv.FormatInt(userCtx.chatId, 10))
 	} else if userCtx.searchType == Station {
 		go communautofinder.SearchStationCarForGoRoutine(cityId, currentCoordinate, userCtx.kmMargin, userCtx.dateStart, userCtx.dateEnd, resultChannel[userCtx.chatId], ctx, cancel)
+		log.Printf("Searching a station vehicule for user " + strconv.FormatInt(userCtx.chatId, 10))
 	}
 
 	nbCarFound := <-resultChannel[userCtx.chatId]
@@ -243,9 +255,11 @@ func launchSearch(userCtx UserContext) {
 	var msg tgbotapi.MessageConfig
 
 	if nbCarFound != -1 {
-		msg = tgbotapi.NewMessage(userCtx.chatId, fmt.Sprintf("💡 Found ! %d vehicle(s) available according to your search criteria", nbCarFound))
+		msg = tgbotapi.NewMessage(userCtx.chatId, fmt.Sprintf("💡 Trouvé ! %d véhicule(s) disponible(s) selon vos critères de recherche.", nbCarFound))
+		log.Printf("Found vehicule(s) for user " + strconv.FormatInt(userCtx.chatId, 10))
 	} else {
-		msg = tgbotapi.NewMessage(userCtx.chatId, "😞 An error occurred in your search criteria. Please launch a new search")
+		msg = tgbotapi.NewMessage(userCtx.chatId, "😞 Une erreur est survenue dans vos critères de recherche. Veuillez lancer une nouvelle recherche.")
+		log.Printf("Search failure for user " + strconv.FormatInt(userCtx.chatId, 10))
 	}
 
 	bot.Send(msg)

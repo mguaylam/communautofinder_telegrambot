@@ -1,8 +1,8 @@
-github.com/craftlion/communautofinder v1.2.0 h1:eblDFzB36erPjZLRQC4lR5va2AP9Bh8OYB8MqfjRSyA=
-github.com/craftlion/communautofinder v1.2.0/go.mod h1:aUPA9bhCTDcsHax45j1149Hql6d1hNMLwI9TAAYEfso=
 github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible h1:2cauKuaELYAEARXRkq2LrJ0yDDv1rW7+wrTEdVL3uaU=
 github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible/go.mod h1:qf9acutJ8cwBUhm1bqgz6Bei9/C/c93FPDljKWwsOgM=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
+github.com/mguaylam/communautofinder v1.2.1 h1:vvSp4tA/jVxHsq1g0LRV1eSozNPtmEU5tJHRewNaf0A=
+github.com/mguaylam/communautofinder v1.2.1/go.mod h1:dnvRAoTOGp8BHCY084W1QqUWGQ03hS/ZiX8yrdvz418=
 github.com/technoweenie/multipartstreamer v1.0.1 h1:XRztA5MXiR1TIRHxH2uNxXxaIkKQDeX7m2XsSOlQEnM=
 github.com/technoweenie/multipartstreamer v1.0.1/go.mod h1:jNVxdtShOxzAsukZwTSw6MDx5eUJoiEBsSvzDU9uzog=
