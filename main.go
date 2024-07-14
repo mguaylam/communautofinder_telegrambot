@@ -44,7 +44,7 @@ type UserContext struct {
 	dateEnd    time.Time
 }
 
-const cityId = 59 // see available cities -> https://restapifrontoffice.reservauto.net/ReservautoFrontOffice/index.html?urls.primaryName=Branch%20version%202%20(6.93.1)#/
+var cityId int
 
 var userContexts = make(map[int64]UserContext)
 var resultChannel = make(map[int64]chan int)
@@ -54,23 +54,35 @@ const layoutDate = "2006-01-02 15:04"
 
 const dateExample = "2023-11-21 20:12"
 
+var authorizedUserIdSlice []string
+
+var authorizedUserId string
+
 var bot *tgbotapi.BotAPI
 
 var mutex = sync.Mutex{}
 
 func main() {
 
+	var err error
+
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
 	})
 
 	go http.ListenAndServe(":8444", nil)
 
-	// Find TOKEN in .env file if exist
+	// Find TOKEN env if exist
 	godotenv.Load()
-	var err error
 
 	bot, err = tgbotapi.NewBotAPI(os.Getenv("TOKEN_COMMUNAUTOSEARCH_BOT"))
+	authorizedUserId = os.Getenv("AUTHORIZED_USERS_ID")
+	cityId, err = strconv.Atoi(os.Getenv("CITY_ID"))
+	authorizedUserIdSlice = strings.Split(authorizedUserId, ";")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,6 +129,23 @@ func main() {
 func generateResponse(userCtx *UserContext, message *tgbotapi.Message) string {
 
 	messageText := message.Text
+	userAuthorized := false
+
+	// check if user is authorized with to chat from AUTHORIZED_USERS_ID
+	for _, element := range authorizedUserIdSlice {
+		userIdInt64, err := strconv.ParseInt(element, 10, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if userCtx.chatId == userIdInt64 {
+			userAuthorized = true
+		}
+	}
+
+	if userAuthorized != true {
+		log.Printf("User not authorized : " + strconv.FormatInt(userCtx.chatId, 10))
+		return "Vous n'êtes pas autorisé à utiliser ce rebot."
+	}
 
 	if strings.ToLower(messageText) == "/aide" {
 		return "Écrire:\n/chercher pour initier une nouvelle recherche.\n/recommencer pour redémarrer une recherche avec les mêmes paramètres que la recherche précédente."
